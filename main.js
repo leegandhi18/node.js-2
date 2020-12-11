@@ -76,7 +76,7 @@ var app = http.createServer(function(request,response){
           if(error) {
             throw error;
           }
-          db.query(`select * from topic where id=?`, [queryData.id], function(error2, topic){
+          db.query(`select * from topic left join author on topic.author_id=author.id where topic.id=?`, [queryData.id], function(error2, topic){
             if(error2) {
               throw error2;
             }
@@ -84,7 +84,10 @@ var app = http.createServer(function(request,response){
             var description = topic[0].description;
             var list = template.list(topics);
             var html = template.HTML(title, list,
-              `<h2>${title}</h2>${description}`,
+              `
+              <h2>${title}</h2>
+              ${description}
+              <p>by ${topic[0].name}</p>`,
               `<a href="/create">create</a>
               <a href="/update?id=${queryData.id}">update</a>
               <form action="delete_process" method="post">
@@ -119,25 +122,31 @@ var app = http.createServer(function(request,response){
 
       // mysql 대체 이후 코드
       db.query(`select * from topic`, function(error, topics){
-        var title = 'Create';
-        var list = template.list(topics);
-        var html = template.HTML(title, list,
-          `
-          <form action="/create_process" method="post">
-            <p><input type="text" name="title" placeholder="title"></p>
-            <p>
-              <textarea name="description" placeholder="description"></textarea>
-            </p>
-            <p>
-              <input type="submit">
-            </p>
-          </form>
-          `,
-          `<a href="/create">create</a>`
-        );
-        response.writeHead(200);
-        response.end(html);
-      });
+        db.query(`select * from author`, function(error2, authors){
+          var title = 'Create';
+          var list = template.list(topics);
+          var html = template.HTML(title, list,
+            `
+            <form action="/create_process" method="post">
+              <p><input type="text" name="title" placeholder="title"></p>
+              <p>
+                <textarea name="description" placeholder="description"></textarea>
+              </p>
+              <p>
+                ${template.authorSelect(authors)}
+              </p>
+              <p>
+                <input type="submit">
+              </p>
+            </form>
+            `,
+            `<a href="/create">create</a>`
+          );
+          response.writeHead(200);
+          response.end(html);
+        });
+
+        });
     } else if(pathname === '/create_process'){
       var body = '';
       request.on('data', function(data){
@@ -148,7 +157,7 @@ var app = http.createServer(function(request,response){
           db.query(`
           insert into topic (title, description, created, author_id) 
            values(?, ?, now(), ?)`,
-           [post.title, post.description, 1],
+           [post.title, post.description, post.author],
            function(error, result){
              if(error){
                throw error;
